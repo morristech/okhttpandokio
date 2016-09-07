@@ -1,12 +1,13 @@
-package com.example.tryeventbus_simple;
+package com.cld.eventbus;
 
-import com.harvic.other.FirstEvent;
-
-import de.greenrobot.event.EventBus;
 import android.app.Activity;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.Button;
+
+import com.harvic.other.FirstEvent;
+
+import de.greenrobot.event.EventBus;
 
 public class SecondActivity extends Activity {
 	private Button btn_FirstEvent;
