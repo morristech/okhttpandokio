@@ -31,205 +31,229 @@ import okhttp3.internal.Util;
 /**
  * Policy on when async requests are executed.
  *
- * <p>Each dispatcher uses an {@link ExecutorService} to run calls internally. If you supply your
- * own executor, it should be able to run {@linkplain #getMaxRequests the configured maximum} number
- * of calls concurrently.
+ * <p>
+ * Each dispatcher uses an {@link ExecutorService} to run calls internally. If
+ * you supply your own executor, it should be able to run
+ * {@linkplain #getMaxRequests the configured maximum} number of calls
+ * concurrently.
  */
 public final class Dispatcher {
-  private int maxRequests = 64;
-  private int maxRequestsPerHost = 5;
-  private Runnable idleCallback;
+	private int maxRequests = 64;// 最大并发请求数量
+	private int maxRequestsPerHost = 5;// 每个主机的最大请求数量
+	private Runnable idleCallback;
 
-  /** Executes calls. Created lazily. */
-  private ExecutorService executorService;
+	/** Executes calls. Created lazily. */
+	private ExecutorService executorService;// 消费者池-也就是线程池
 
-  /** Ready async calls in the order they'll be run. */
-  private final Deque<AsyncCall> readyAsyncCalls = new ArrayDeque<>();
+	/** Ready async calls in the order they'll be run. */
+	private final Deque<AsyncCall> readyAsyncCalls = new ArrayDeque<>();
 
-  /** Running asynchronous calls. Includes canceled calls that haven't finished yet. */
-  private final Deque<AsyncCall> runningAsyncCalls = new ArrayDeque<>();
+	/**
+	 * Running asynchronous calls. Includes canceled calls that haven't finished
+	 * yet.
+	 */
+	private final Deque<AsyncCall> runningAsyncCalls = new ArrayDeque<>();// 正在运行的任务
 
-  /** Running synchronous calls. Includes canceled calls that haven't finished yet. */
-  private final Deque<RealCall> runningSyncCalls = new ArrayDeque<>();
+	/**
+	 * Running synchronous calls. Includes canceled calls that haven't finished
+	 * yet.
+	 */
+	private final Deque<RealCall> runningSyncCalls = new ArrayDeque<>();
 
-  public Dispatcher(ExecutorService executorService) {
-    this.executorService = executorService;
-  }
+	public Dispatcher(ExecutorService executorService) {
+		this.executorService = executorService;
+	}
 
-  public Dispatcher() {
-  }
+	public Dispatcher() {
+	}
 
-  public synchronized ExecutorService executorService() {
-    if (executorService == null) {
-      executorService = new ThreadPoolExecutor(0, Integer.MAX_VALUE, 60, TimeUnit.SECONDS,
-          new SynchronousQueue<Runnable>(), Util.threadFactory("OkHttp Dispatcher", false));
-    }
-    return executorService;
-  }
+	public synchronized ExecutorService executorService() {
+		if (executorService == null) {
+			executorService = new ThreadPoolExecutor(0, Integer.MAX_VALUE, 60, TimeUnit.SECONDS,
+					new SynchronousQueue<Runnable>(), Util.threadFactory("OkHttp Dispatcher", false));
+		}
+		return executorService;
+	}
 
-  /**
-   * Set the maximum number of requests to execute concurrently. Above this requests queue in
-   * memory, waiting for the running calls to complete.
-   *
-   * <p>If more than {@code maxRequests} requests are in flight when this is invoked, those requests
-   * will remain in flight.
-   */
-  public synchronized void setMaxRequests(int maxRequests) {
-    if (maxRequests < 1) {
-      throw new IllegalArgumentException("max < 1: " + maxRequests);
-    }
-    this.maxRequests = maxRequests;
-    promoteCalls();
-  }
+	/**
+	 * Set the maximum number of requests to execute concurrently. Above this
+	 * requests queue in memory, waiting for the running calls to complete.
+	 *
+	 * <p>
+	 * If more than {@code maxRequests} requests are in flight when this is
+	 * invoked, those requests will remain in flight.
+	 */
+	public synchronized void setMaxRequests(int maxRequests) {
+		if (maxRequests < 1) {
+			throw new IllegalArgumentException("max < 1: " + maxRequests);
+		}
+		this.maxRequests = maxRequests;
+		promoteCalls();
+	}
 
-  public synchronized int getMaxRequests() {
-    return maxRequests;
-  }
+	public synchronized int getMaxRequests() {
+		return maxRequests;
+	}
 
-  /**
-   * Set the maximum number of requests for each host to execute concurrently. This limits requests
-   * by the URL's host name. Note that concurrent requests to a single IP address may still exceed
-   * this limit: multiple hostnames may share an IP address or be routed through the same HTTP
-   * proxy.
-   *
-   * <p>If more than {@code maxRequestsPerHost} requests are in flight when this is invoked, those
-   * requests will remain in flight.
-   */
-  public synchronized void setMaxRequestsPerHost(int maxRequestsPerHost) {
-    if (maxRequestsPerHost < 1) {
-      throw new IllegalArgumentException("max < 1: " + maxRequestsPerHost);
-    }
-    this.maxRequestsPerHost = maxRequestsPerHost;
-    promoteCalls();
-  }
+	/**
+	 * Set the maximum number of requests for each host to execute concurrently.
+	 * This limits requests by the URL's host name. Note that concurrent
+	 * requests to a single IP address may still exceed this limit: multiple
+	 * hostnames may share an IP address or be routed through the same HTTP
+	 * proxy.
+	 *
+	 * <p>
+	 * If more than {@code maxRequestsPerHost} requests are in flight when this
+	 * is invoked, those requests will remain in flight.
+	 */
+	public synchronized void setMaxRequestsPerHost(int maxRequestsPerHost) {
+		if (maxRequestsPerHost < 1) {
+			throw new IllegalArgumentException("max < 1: " + maxRequestsPerHost);
+		}
+		this.maxRequestsPerHost = maxRequestsPerHost;
+		promoteCalls();
+	}
 
-  public synchronized int getMaxRequestsPerHost() {
-    return maxRequestsPerHost;
-  }
+	public synchronized int getMaxRequestsPerHost() {
+		return maxRequestsPerHost;
+	}
 
-  /**
-   * Set a callback to be invoked each time the dispatcher becomes idle (when the number of running
-   * calls returns to zero).
-   *
-   * <p>Note: The time at which a {@linkplain Call call} is considered idle is different depending
-   * on whether it was run {@linkplain Call#enqueue(Callback) asynchronously} or
-   * {@linkplain Call#execute() synchronously}. Asynchronous calls become idle after the
-   * {@link Callback#onResponse onResponse} or {@link Callback#onFailure onFailure} callback has
-   * returned. Synchronous calls become idle once {@link Call#execute() execute()} returns. This
-   * means that if you are doing synchronous calls the network layer will not truly be idle until
-   * every returned {@link Response} has been closed.
-   */
-  public synchronized void setIdleCallback(Runnable idleCallback) {
-    this.idleCallback = idleCallback;
-  }
+	/**
+	 * Set a callback to be invoked each time the dispatcher becomes idle (when
+	 * the number of running calls returns to zero).
+	 *
+	 * <p>
+	 * Note: The time at which a {@linkplain Call call} is considered idle is
+	 * different depending on whether it was run
+	 * {@linkplain Call#enqueue(Callback) asynchronously} or
+	 * {@linkplain Call#execute() synchronously}. Asynchronous calls become idle
+	 * after the {@link Callback#onResponse onResponse} or
+	 * {@link Callback#onFailure onFailure} callback has returned. Synchronous
+	 * calls become idle once {@link Call#execute() execute()} returns. This
+	 * means that if you are doing synchronous calls the network layer will not
+	 * truly be idle until every returned {@link Response} has been closed.
+	 */
+	public synchronized void setIdleCallback(Runnable idleCallback) {
+		this.idleCallback = idleCallback;
+	}
 
-  synchronized void enqueue(AsyncCall call) {
-    if (runningAsyncCalls.size() < maxRequests && runningCallsForHost(call) < maxRequestsPerHost) {
-      runningAsyncCalls.add(call);
-      executorService().execute(call);
-    } else {
-      readyAsyncCalls.add(call);
-    }
-  }
+	synchronized void enqueue(AsyncCall call) {
+		// 入队策略:如果小于64且runningAsyncCalls小于5，就直接放到runningAsyncCalls中，否则放入到readyAsyncCalls
+		if (runningAsyncCalls.size() < maxRequests && runningCallsForHost(call) < maxRequestsPerHost) {
+			runningAsyncCalls.add(call);
+			executorService().execute(call);
+		} else {
+			readyAsyncCalls.add(call);
+		}
+	}
 
-  /**
-   * Cancel all calls currently enqueued or executing. Includes calls executed both {@linkplain
-   * Call#execute() synchronously} and {@linkplain Call#enqueue asynchronously}.
-   */
-  public synchronized void cancelAll() {
-    for (AsyncCall call : readyAsyncCalls) {
-      call.get().cancel();
-    }
+	/**
+	 * Cancel all calls currently enqueued or executing. Includes calls executed
+	 * both {@linkplain Call#execute() synchronously} and
+	 * {@linkplain Call#enqueue asynchronously}.
+	 */
+	public synchronized void cancelAll() {
+		for (AsyncCall call : readyAsyncCalls) {
+			call.get().cancel();
+		}
 
-    for (AsyncCall call : runningAsyncCalls) {
-      call.get().cancel();
-    }
+		for (AsyncCall call : runningAsyncCalls) {
+			call.get().cancel();
+		}
 
-    for (RealCall call : runningSyncCalls) {
-      call.cancel();
-    }
-  }
+		for (RealCall call : runningSyncCalls) {
+			call.cancel();
+		}
+	}
 
-  private void promoteCalls() {
-    if (runningAsyncCalls.size() >= maxRequests) return; // Already running max capacity.
-    if (readyAsyncCalls.isEmpty()) return; // No ready calls to promote.
+	private void promoteCalls() {
+		if (runningAsyncCalls.size() >= maxRequests)// 还是满的，无法添加
+			return; // Already running max capacity.
+		if (readyAsyncCalls.isEmpty())// 空的，无需添加
+			return; // No ready calls to promote.
 
-    for (Iterator<AsyncCall> i = readyAsyncCalls.iterator(); i.hasNext(); ) {
-      AsyncCall call = i.next();
+		for (Iterator<AsyncCall> i = readyAsyncCalls.iterator(); i.hasNext();) {
+			AsyncCall call = i.next();
 
-      if (runningCallsForHost(call) < maxRequestsPerHost) {
-        i.remove();
-        runningAsyncCalls.add(call);
-        executorService().execute(call);
-      }
+			if (runningCallsForHost(call) < maxRequestsPerHost) {// 只要没满，就可以添加
+				i.remove();
+				runningAsyncCalls.add(call);
+				executorService().execute(call);
+			}
 
-      if (runningAsyncCalls.size() >= maxRequests) return; // Reached max capacity.
-    }
-  }
+			if (runningAsyncCalls.size() >= maxRequests)// 如果满了，就不能添加了
+				return; // Reached max capacity.
+		}
+	}
 
-  /** Returns the number of running calls that share a host with {@code call}. */
-  private int runningCallsForHost(AsyncCall call) {
-    int result = 0;
-    for (AsyncCall c : runningAsyncCalls) {
-      if (c.host().equals(call.host())) result++;
-    }
-    return result;
-  }
+	/**
+	 * Returns the number of running calls that share a host with {@code call}.
+	 */
+	private int runningCallsForHost(AsyncCall call) {
+		int result = 0;
+		for (AsyncCall c : runningAsyncCalls) {
+			if (c.host().equals(call.host()))
+				result++;
+		}
+		return result;
+	}
 
-  /** Used by {@code Call#execute} to signal it is in-flight. */
-  synchronized void executed(RealCall call) {
-    runningSyncCalls.add(call);
-  }
+	/** Used by {@code Call#execute} to signal it is in-flight. */
+	synchronized void executed(RealCall call) {
+		runningSyncCalls.add(call);
+	}
 
-  /** Used by {@code AsyncCall#run} to signal completion. */
-  void finished(AsyncCall call) {
-    finished(runningAsyncCalls, call, true);
-  }
+	/** Used by {@code AsyncCall#run} to signal completion. */
+	void finished(AsyncCall call) {
+		finished(runningAsyncCalls, call, true);
+	}
 
-  /** Used by {@code Call#execute} to signal completion. */
-  void finished(RealCall call) {
-    finished(runningSyncCalls, call, false);
-  }
+	/** Used by {@code Call#execute} to signal completion. */
+	void finished(RealCall call) {
+		finished(runningSyncCalls, call, false);
+	}
 
-  private <T> void finished(Deque<T> calls, T call, boolean promoteCalls) {
-    int runningCallsCount;
-    Runnable idleCallback;
-    synchronized (this) {
-      if (!calls.remove(call)) throw new AssertionError("Call wasn't in-flight!");
-      if (promoteCalls) promoteCalls();
-      runningCallsCount = runningCallsCount();
-      idleCallback = this.idleCallback;
-    }
+	private <T> void finished(Deque<T> calls, T call, boolean promoteCalls) {
+		int runningCallsCount;
+		Runnable idleCallback;
+		synchronized (this) {
+			if (!calls.remove(call))// 移除当前的请求
+				throw new AssertionError("Call wasn't in-flight!");
+			if (promoteCalls)// 手动移动缓冲区，把readyAsyncCalls中的数据转移到runningAsyncCalls中去
+				promoteCalls();
+			runningCallsCount = runningCallsCount();
+			idleCallback = this.idleCallback;
+		}
 
-    if (runningCallsCount == 0 && idleCallback != null) {
-      idleCallback.run();
-    }
-  }
+		if (runningCallsCount == 0 && idleCallback != null) {
+			idleCallback.run();
+		}
+	}
 
-  /** Returns a snapshot of the calls currently awaiting execution. */
-  public synchronized List<Call> queuedCalls() {
-    List<Call> result = new ArrayList<>();
-    for (AsyncCall asyncCall : readyAsyncCalls) {
-      result.add(asyncCall.get());
-    }
-    return Collections.unmodifiableList(result);
-  }
+	/** Returns a snapshot of the calls currently awaiting execution. */
+	public synchronized List<Call> queuedCalls() {
+		List<Call> result = new ArrayList<>();
+		for (AsyncCall asyncCall : readyAsyncCalls) {
+			result.add(asyncCall.get());
+		}
+		return Collections.unmodifiableList(result);
+	}
 
-  /** Returns a snapshot of the calls currently being executed. */
-  public synchronized List<Call> runningCalls() {
-    List<Call> result = new ArrayList<>();
-    result.addAll(runningSyncCalls);
-    for (AsyncCall asyncCall : runningAsyncCalls) {
-      result.add(asyncCall.get());
-    }
-    return Collections.unmodifiableList(result);
-  }
+	/** Returns a snapshot of the calls currently being executed. */
+	public synchronized List<Call> runningCalls() {
+		List<Call> result = new ArrayList<>();
+		result.addAll(runningSyncCalls);
+		for (AsyncCall asyncCall : runningAsyncCalls) {
+			result.add(asyncCall.get());
+		}
+		return Collections.unmodifiableList(result);
+	}
 
-  public synchronized int queuedCallsCount() {
-    return readyAsyncCalls.size();
-  }
+	public synchronized int queuedCallsCount() {
+		return readyAsyncCalls.size();
+	}
 
-  public synchronized int runningCallsCount() {
-    return runningAsyncCalls.size() + runningSyncCalls.size();
-  }
+	public synchronized int runningCallsCount() {
+		return runningAsyncCalls.size() + runningSyncCalls.size();
+	}
 }
