@@ -134,6 +134,8 @@ public final class RetryAndFollowUpInterceptor implements Interceptor {
 			try {
 				response = ((RealInterceptorChain) chain).proceed(request,
 						streamAllocation, null, null);
+				Log.i(CldMainUtil.TAG,
+						"RetryAndFollowUpInterceptor +networkResponse ");
 				releaseConnection = false;
 			} catch (RouteException e) {
 				// The attempt to connect via a route failed. The request will
@@ -169,7 +171,7 @@ public final class RetryAndFollowUpInterceptor implements Interceptor {
 
 			Request followUp = followUpRequest(response);
 
-			if (followUp == null) {
+			if (followUp == null) {// 只有等于null的时候才返回最终的结果
 				if (!forWebSocket) {
 					streamAllocation.release();
 				}
@@ -305,7 +307,7 @@ public final class RetryAndFollowUpInterceptor implements Interceptor {
 
 		final String method = userResponse.request().method();
 		switch (responseCode) {
-		case HTTP_PROXY_AUTH:
+		case HTTP_PROXY_AUTH:// 407需要经过代理服务器认证，这个时候抛出异常，不进行重定向
 			Proxy selectedProxy = route != null ? route.proxy() : client
 					.proxy();
 			if (selectedProxy.type() != Proxy.Type.HTTP) {
@@ -315,7 +317,7 @@ public final class RetryAndFollowUpInterceptor implements Interceptor {
 			return client.proxyAuthenticator()
 					.authenticate(route, userResponse);
 
-		case HTTP_UNAUTHORIZED:
+		case HTTP_UNAUTHORIZED:// 身份未认证
 			return client.authenticator().authenticate(route, userResponse);
 
 		case HTTP_PERM_REDIRECT:
@@ -333,7 +335,7 @@ public final class RetryAndFollowUpInterceptor implements Interceptor {
 		case HTTP_MOVED_TEMP:
 		case HTTP_SEE_OTHER:
 			// Does the client allow redirects?
-			if (!client.followRedirects())
+			if (!client.followRedirects())// 不允许重定向
 				return null;
 
 			String location = userResponse.header("Location");

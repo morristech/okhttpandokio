@@ -96,6 +96,7 @@ public final class BridgeInterceptor implements Interceptor {
     }
 
     Response networkResponse = chain.proceed(requestBuilder.build());
+    Log.i(CldMainUtil.TAG, "BridgeInterceptor +networkResponse ");
 
     HttpHeaders.receiveHeaders(cookieJar, userRequest.url(), networkResponse.headers());
 

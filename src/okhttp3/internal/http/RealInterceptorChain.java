@@ -17,6 +17,11 @@ package okhttp3.internal.http;
 
 import java.io.IOException;
 import java.util.List;
+
+import android.util.Log;
+
+import com.cp.demo.ui.util.CldMainUtil;
+
 import okhttp3.Connection;
 import okhttp3.HttpUrl;
 import okhttp3.Interceptor;
@@ -101,6 +106,7 @@ public final class RealInterceptorChain implements Interceptor.Chain {
 		// 循环去取index中的Interceptor，这个是在RealCall中添加的。
 		Interceptor interceptor = interceptors.get(index);
 		Response response = interceptor.intercept(next);
+		Log.i(CldMainUtil.TAG, "RealInterceptorChain +networkResponse ");
 
 		// Confirm that the next interceptor made its required call to
 		// chain.proceed().
