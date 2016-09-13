@@ -134,7 +134,7 @@ import okio.Source;
  * {@link CacheControl#FORCE_CACHE} that address the use cases above.
  */
 public final class Cache implements Closeable, Flushable {
-  private static final int VERSION = 201105;
+  private static final int VERSION = 201105;//版本号-如果版本号改变，旧的缓存数据会被清楚
   private static final int ENTRY_METADATA = 0;
   private static final int ENTRY_BODY = 1;
   private static final int ENTRY_COUNT = 2;
@@ -183,7 +183,7 @@ public final class Cache implements Closeable, Flushable {
   }
 
   private static String urlToKey(Request request) {
-    return Util.md5Hex(request.url().toString());
+    return Util.md5Hex(request.url().toString());//MD5编码，url可能含有非法字符
   }
 
   Response get(Request request) {

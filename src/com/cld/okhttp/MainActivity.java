@@ -1,72 +1,75 @@
 package com.cld.okhttp;
 
-import java.io.File;
-import java.io.IOException;
-import java.util.Timer;
-import java.util.TimerTask;
-import java.util.concurrent.TimeUnit;
+import java.util.ArrayList;
+import java.util.List;
 
-import okhttp3.Cache;
-import okhttp3.CacheControl;
-import okhttp3.Call;
-import okhttp3.Callback;
-import okhttp3.FormBody;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.RequestBody;
-import okhttp3.Response;
-import okhttp3.internal.Internal;
 import android.app.Activity;
+import android.content.Intent;
 import android.os.Bundle;
-import android.util.Log;
+import android.view.View;
+import android.widget.AdapterView;
+import android.widget.AdapterView.OnItemClickListener;
+import android.widget.ListView;
 import android.widget.TextView;
 
 import com.cp.demo.ui.util.CldMainUtil;
 
 public class MainActivity extends Activity {
 
-	OkHttpClient client;
+	private ListView main_list;
+	private MainListAdapter mListAdapter;
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		setContentView(R.layout.main_layout);
 		super.onCreate(savedInstanceState);
 		((TextView) findViewById(R.id.top_title)).setText("OkHttp");
+		main_list = (ListView) findViewById(R.id.main_list);
+		mListAdapter = new MainListAdapter(MainActivity.this, getList());
+		main_list.setAdapter(mListAdapter);
 
-		File sdcache = getExternalCacheDir();
-		int cacheSize = 10 * 1024 * 1024;// 10M
-		// Internal.instance.setCache(new Cache(sdcache.getAbsoluteFile(),
-		// cacheSize));// 设置缓存
-		// Internal.instance.setCache(client.newBuilder(),
-		// new Cache(sdcache.getAbsoluteFile(), cacheSize).initialize());// 设置缓存
+		CldMainUtil.setListPading(MainActivity.this, main_list);
 
-		client = new OkHttpClient().newBuilder()
-				.cache(new Cache(sdcache.getAbsoluteFile(), cacheSize)).build();
-
-		new Thread(new Runnable() {
+		main_list.setOnItemClickListener(new OnItemClickListener() {
 
 			@Override
-			public void run() {
-				// getGetHttp();// 需要在线程中执行execute
-				getPostHttp();
-				// getPostHttp();
+			public void onItemClick(AdapterView<?> arg0, View arg1, int arg2,
+					long arg3) {
+				switch (arg2) {
+				case 0:
+					startActivity(new Intent(MainActivity.this,
+							CldTest1Activity.class));
+					break;
+				case 1:
+					startActivity(new Intent(MainActivity.this,
+							CldTest2Activity.class));
+					break;
+				case 2:
+					startActivity(new Intent(MainActivity.this,
+							CldTest3Activity.class));
+					break;
+				case 3:
+					startActivity(new Intent(MainActivity.this,
+							CldTest4Activity.class));
+					break;
+
+				default:
+					break;
+				}
+
 			}
-		}).start();
-
-		// try {
-		// cancelTest();
-		// } catch (Exception e) {
-		// // TODO Auto-generated catch block
-		// e.printStackTrace();
-		// }
-
-		// getGetHttp2();// 使用Okhttp的县城切换
+		});
 
 	}
 
-	// private void simpleDo(){
-	// SubjectPost
-	// }
+	private List<String> getList() {
+		List<String> mList = new ArrayList<String>();
+		mList.add("异步GET请求");
+		mList.add("异步POST请求");
+		mList.add("异步上传文件");
+		mList.add("异步下载文件");
+		return mList;
+	}
 
 	public String ex() {
 		StringBuilder mBuilder = new StringBuilder();
@@ -75,180 +78,6 @@ public class MainActivity extends Activity {
 		mBuilder.append("3.通过连接池来减小相应延迟\n");
 		mBuilder.append("4.有透明的GZIP压缩，请求缓存等优势\n");
 		return mBuilder.toString();
-	}
-
-	public void getGetHttp() {
-		try {
-			OkHttpClient client = new OkHttpClient();
-			Request request = new Request.Builder().url(
-					"http://publicobject.com/helloworld.txt").build();
-			Response response = client.newCall(request).execute();
-			if (response.isSuccessful()) {
-				Log.i(CldMainUtil.TAG, "getHttp =" + response.code());
-				Log.i(CldMainUtil.TAG, "getHttp body="
-						+ response.body().toString());
-			}
-		} catch (IOException e) {
-			e.printStackTrace();
-			Log.i(CldMainUtil.TAG, "IOException =");
-		}
-	}
-
-	public void getGetHttp2() {
-		Request request = new Request.Builder().url(
-				"http://publicobject.com/helloworld.txt").build();
-		// client.newCall(request).enqueue(new Callback() {
-		//
-		// @Override
-		// public void onResponse(Response response) throws IOException {
-		// // !!!!!!!!!!!非UI线程
-		// if (response.isSuccessful()) {
-		// Log.i(CldMainUtil.TAG, "getHttp =" + response.code());
-		// Log.i(CldMainUtil.TAG, "getHttp body="
-		// + response.body().toString());
-		// }
-		// }
-		//
-		// @Override
-		// public void onFailure(Request response, IOException arg1) {
-		// // TODO Auto-generated method stub
-		//
-		// }
-		// });
-	}
-
-	/**
-	 * 通过post方式请求
-	 * 
-	 * @return void
-	 * @author ChenP
-	 * @date 2016年8月23日 下午3:37:38
-	 */
-	public void getPostHttp() {
-		try {
-			// FormBody formBody = new FormBody.Builder()
-			// .add("platform", "android").add("name", "bug")
-			// .add("subject", "XXXXXXXXXXXXXXX").build();
-			//
-			// Request request = new Request.Builder()
-			// .cacheControl(
-			// new CacheControl.Builder().maxAge(365,
-			// TimeUnit.SECONDS).build())
-			// .url("http://publicobject.com/helloworld.txt")
-			// .put(formBody).build();
-
-			File sdcache = getExternalCacheDir();
-			int cacheSize = 10 * 1024 * 1024;// 10M
-
-			OkHttpClient client = new OkHttpClient().newBuilder()
-					.cache(new Cache(sdcache.getAbsoluteFile(), cacheSize))
-					.build();
-			Request request = new Request.Builder()
-					.cacheControl(
-							new CacheControl.Builder().maxAge(0,
-									TimeUnit.SECONDS).build())
-					.url("https://publicobject.com/helloworld.txt").build();
-
-			/**
-			 * 第一次请求
-			 */
-			Response response = client.newCall(request).execute();
-			if (response.isSuccessful()) {
-				log("第一次请求:", response);
-				response.body().close();
-			}
-			/**
-			 * 第二次请求
-			 */
-			Response response2 = client.newCall(request).execute();//
-			// /按道理应该使用缓存，但是打log没有，没找到是什么原因？？？？？
-			if (response2.isSuccessful()) {
-				log("第二次应该有缓存:", response2);
-				response2.body().close();
-			}
-			/**
-			 * 第三次请求
-			 */
-			request = request.newBuilder()
-					.cacheControl(CacheControl.FORCE_NETWORK).build();// ---强制使用网络
-			Response response3 = client.newCall(request).execute();//
-			if (response3.isSuccessful()) {
-				log("第三次强制使用网络:", response3);
-				response3.body().close();
-			}
-			/**
-			 * 第四次请求
-			 */
-			request = request.newBuilder()
-					.cacheControl(CacheControl.FORCE_CACHE).build();// ---强制使用缓存
-			Response response4 = client.newCall(request).execute();//
-			if (response4.isSuccessful()) {
-				log("第三次强制使用网络:", response4);
-				response4.body().close();
-			} else {
-				Log.i(CldMainUtil.TAG, "getPostHttp response fail=" + response4);
-			}
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-	}
-
-	private void cancelTest() throws Exception {
-		Request request = new Request.Builder().url(
-				"http://httpbin.org/delay/2") // This
-												// URL
-												// is
-												// served
-												// with
-												// a
-												// 2
-												// second
-												// delay.
-				.build();
-
-		final long startNanos = System.nanoTime();
-		final Call call = client.newCall(request);
-
-		Timer executor = new Timer();
-		// Schedule a job to cancel the call in 1 second.
-		executor.schedule(new TimerTask() {
-
-			@Override
-			public void run() {
-				// TODO Auto-generated method stub
-				System.out.printf("%.2f Canceling call.%n",
-						(System.nanoTime() - startNanos) / 1e9f);
-				call.cancel();
-				System.out.printf("%.2f Canceled call.%n",
-						(System.nanoTime() - startNanos) / 1e9f);
-			}
-		}, 1, 1000);
-
-		try {
-			System.out.printf("%.2f Executing call.%n",
-					(System.nanoTime() - startNanos) / 1e9f);
-			Response response = call.execute();
-			System.out.printf("call is cancel:" + call.isCanceled() + "%n");
-			System.out.printf(
-					"%.2f Call was expected to fail, but completed: %s%n",
-					(System.nanoTime() - startNanos) / 1e9f, response);
-		} catch (IOException e) {
-			System.out.printf("%.2f Call failed as expected: %s%n",
-					(System.nanoTime() - startNanos) / 1e9f, e);
-		}
-	}
-
-	private void log(String TAG, Response response) {
-		// Log.i(CldMainUtil.TAG, TAG + "getPostHttp code=" + response.code());
-		// Log.i(CldMainUtil.TAG, TAG + "getPostHttp response body="
-		// + response.body().toString());
-		Log.i(CldMainUtil.TAG, TAG + "getPostHttp response=" + response);
-		Log.i(CldMainUtil.TAG,
-				TAG + "getPostHttp cache response=" + response.cacheResponse());
-		Log.i(CldMainUtil.TAG,
-				TAG + "getPostHttp network response="
-						+ response.networkResponse());
 	}
 
 }

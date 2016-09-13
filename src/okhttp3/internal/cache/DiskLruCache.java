@@ -206,19 +206,20 @@ public final class DiskLruCache implements Closeable, Flushable {
     this.executor = executor;
   }
 
+  //初始化
   public synchronized void initialize() throws IOException {
     assert Thread.holdsLock(this);
 
-    if (initialized) {
+    if (initialized) {//已经初始化
       return; // Already initialized.
     }
 
     // If a bkp file exists, use it instead.
     if (fileSystem.exists(journalFileBackup)) {
       // If journal file also exists just delete backup file.
-      if (fileSystem.exists(journalFile)) {
+      if (fileSystem.exists(journalFile)) {//如果已经存在journal文件，就把备份文件删除
         fileSystem.delete(journalFileBackup);
-      } else {
+      } else {//如果不存在，直接重命名为journal文件名
         fileSystem.rename(journalFileBackup, journalFile);
       }
     }
@@ -226,7 +227,7 @@ public final class DiskLruCache implements Closeable, Flushable {
     // Prefer to pick up where we left off.
     if (fileSystem.exists(journalFile)) {
       try {
-        readJournal();
+        readJournal();//读取journal文件中的内容
         processJournal();
         initialized = true;
         return;
@@ -282,7 +283,7 @@ public final class DiskLruCache implements Closeable, Flushable {
           || !"".equals(blank)) {
         throw new IOException("unexpected journal header: [" + magic + ", " + version + ", "
             + valueCountString + ", " + blank + "]");
-      }
+      }//读取开头信息
 
       int lineCount = 0;
       while (true) {
@@ -317,6 +318,7 @@ public final class DiskLruCache implements Closeable, Flushable {
     return Okio.buffer(faultHidingSink);
   }
 
+  //读取journal文件中的删除、插入、读取等记录信息
   private void readJournalLine(String line) throws IOException {
     int firstSpace = line.indexOf(' ');
     if (firstSpace == -1) {
@@ -674,6 +676,7 @@ public final class DiskLruCache implements Closeable, Flushable {
     closed = true;
   }
 
+  //如果大小超过规定的最大size，那么就一点一点删除缓存
   private void trimToSize() throws IOException {
     while (size > maxSize) {
       Entry toEvict = lruEntries.values().iterator().next();
